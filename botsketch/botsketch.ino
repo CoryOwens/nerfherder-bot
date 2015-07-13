@@ -5,7 +5,7 @@
 #define BEEPER_PIN 9
 #define BUTTON_PIN 12
 #define LED_PIN 13
-#define SPEED 255
+#define SPEED 100
 
 RedBotMotors motors = RedBotMotors();
 RedBotAccel accel = RedBotAccel();
@@ -19,6 +19,7 @@ RedBotEncoder encoder = RedBotEncoder(A2, A0);
 void (*func)(); // Function Pointer. Called inside loop(). 
 				// Effectively allows us to point loop() at different function as needed
 boolean bumped;
+int colorDiff;
 
 
 // Called once at the start by Arduino
@@ -30,8 +31,10 @@ void setup() {
 	pinMode(LED_PIN, OUTPUT);
 	bumped = false;
 	encoder.clearEnc(BOTH);
-	Serial.println("Waiting For Button");
-	func = &waitForButton; // Initialize func to wait for the button.
+	waitForButton();
+	takeReadings();
+	waitForButton();
+	func = &mainProg;
 }
 
 // Called repeatedly by Arduino
@@ -41,18 +44,49 @@ void loop() {
 
 void halt(){
 	motors.brake();
+	while (true){
+		// Do nothing
+	}
 }
 
+// Waits for button press and release. Blinks LED at half-second intervals as visual prompt. 
 void waitForButton(){
-	if (digitalRead(BUTTON_PIN) == LOW){
-		Serial.println("Begin Main Program Loop");
-		func = &mainProg;
+	Serial.println("Waiting For Button");
+	unsigned long i = millis();
+	while (digitalRead(BUTTON_PIN) == HIGH){
+		if ((millis() - i) > 500){
+			blinker();
+			i = millis();
+		}
 	}
+	while (digitalRead(BUTTON_PIN) == LOW){
+		if ((millis() - i) > 500){
+			blinker();
+			i = millis();
+		}
+	}
+	Serial.println("Button Press Detected");
+	digitalWrite(LED_PIN, 0);
+}
+
+
+
+void takeReadings(){
+	Serial.println("=== Taking line sensor readings ===");
+	waitForButton();
+	leftLine.setBGLevel();
+	midLine.setBGLevel();
+	rightLine.setBGLevel();
+	waitForButton();
+	leftLine.setDetectLevel();
+	midLine.setDetectLevel();
+	rightLine.setDetectLevel();
+	Serial.println("=== Finished line sensor readings ===");
 }
 
 void mainProg(){
 	encoder.clearEnc(BOTH);
-	while (!bumped){
+	while (!bumped && !lineCheck()){
 		if (stuck() > 4000){
 			reverse();
 			turn();
@@ -122,4 +156,8 @@ void bumpHandler(){
 	bumped = true;
 	motors.brake();
 	Serial.println("Bump Detected!");
+}
+
+boolean lineCheck(){
+	return leftLine.check() || midLine.check() || rightLine.check();
 }
